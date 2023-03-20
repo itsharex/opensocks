@@ -8,13 +8,15 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/gobwas/ws"
+	"github.com/gorilla/websocket"
 	"github.com/net-byte/opensocks/common/cipher"
 	"github.com/net-byte/opensocks/common/enum"
 	"github.com/net-byte/opensocks/config"
 	"github.com/net-byte/opensocks/proto"
+	utls "github.com/refraction-networking/utls"
 	"github.com/xtaci/kcp-go/v5"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -46,14 +48,31 @@ func connectServer(config config.Config) net.Conn {
 		return c
 	} else {
 		url := fmt.Sprintf("%s://%s%s", config.Protocol, config.ServerAddr, enum.WSPath)
-		dialer := &ws.Dialer{ReadBufferSize: enum.BufferSize, WriteBufferSize: enum.BufferSize, Timeout: time.Duration(enum.Timeout) * time.Second}
-		c, _, _, err := dialer.Dial(context.Background(), url)
+		dialer := &websocket.Dialer{
+			NetDial: func(network, addr string) (net.Conn, error) {
+				return net.DialTimeout(network, addr, time.Duration(enum.Timeout)*time.Second)
+			},
+			ReadBufferSize:   enum.BufferSize,
+			WriteBufferSize:  enum.BufferSize,
+			HandshakeTimeout: time.Duration(enum.Timeout) * time.Second,
+		}
+		dialer.NetDialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			netDialer := &net.Dialer{}
+			netConn, err := netDialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			// must use fingerprint with no alpn since the websocket must be handled with http/1.1
+			uTLSConfig := &utls.Config{NextProtos: []string{"http/1.1"}, ServerName: strings.Split(addr, ":")[0]}
+			return utls.UClient(netConn, uTLSConfig, utls.HelloRandomizedNoALPN), nil
+		}
+		wsconn, _, err := dialer.Dial(url, nil)
 		if err != nil {
 			log.Printf("[client] failed to dial websocket %s %v", url, err)
 			return nil
 		}
 		log.Printf("[client] ws server connected %s", url)
-		return c
+		return wsconn.UnderlyingConn()
 	}
 }
 

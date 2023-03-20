@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gobwas/ws"
 	"github.com/golang/snappy"
+	"github.com/gorilla/websocket"
 	"github.com/net-byte/opensocks/common/cipher"
 	"github.com/net-byte/opensocks/common/enum"
 	"github.com/net-byte/opensocks/common/pool"
@@ -39,6 +39,7 @@ var _defaultPage = []byte(`
 </body>
 </html>`)
 
+var _upgrader = websocket.Upgrader{ReadBufferSize: enum.BufferSize, WriteBufferSize: enum.BufferSize}
 var _wsServer http.Server
 var _tcpListener net.Listener
 var _kcpListener *kcp.Listener
@@ -80,12 +81,12 @@ func Stop() {
 
 func startWSServer(config config.Config) {
 	http.HandleFunc(enum.WSPath, func(w http.ResponseWriter, r *http.Request) {
-		conn, _, _, err := ws.UpgradeHTTP(r, w)
+		conn, err := _upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("[server] failed to upgrade http %v", err)
 			return
 		}
-		muxHandler(conn, config)
+		muxHandler(conn.UnderlyingConn(), config)
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
