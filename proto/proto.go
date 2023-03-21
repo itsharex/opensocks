@@ -59,12 +59,8 @@ func PaddingEncode(data []byte) ([]byte, error) {
 		min := int(1000 - dataLen)
 		max := int(1500 - dataLen)
 		size = rand.Intn((max - min + 1) + min)
-	} else {
-		min := 0
-		max := int(1500 - dataLen)
-		size = rand.Intn((max - min + 1) + min)
+		randomLen, randomData = cipher.RandomData(size)
 	}
-	randomLen, randomData = cipher.RandomData(size)
 	//log.Printf("dataLen:%v randomLen:%v", dataLen, randomLen)
 	totalLen = dataLen + randomLen
 	pkg := new(bytes.Buffer)
@@ -101,9 +97,6 @@ func PaddingDecode(reader *bufio.Reader) (int, []byte, error) {
 	}
 	if totalLen == 0 {
 		return 0, nil, errors.New("data is empty")
-	}
-	if totalLen > 1500 {
-		return 0, nil, errors.New("data is too large")
 	}
 	if int32(reader.Buffered()) < 8+totalLen {
 		return 0, nil, err
