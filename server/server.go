@@ -193,7 +193,7 @@ func muxHandler(w net.Conn, config config.Config) {
 
 func handshake(config config.Config, reader *bufio.Reader) (bool, proxy.RequestAddr) {
 	var req proxy.RequestAddr
-	b, _, err := proto.Decode(reader)
+	_, b, err := proto.Decode(reader)
 	if err != nil {
 		return false, req
 	}
@@ -232,6 +232,13 @@ func toClient(config config.Config, stream net.Conn, conn net.Conn) {
 		if config.Compress {
 			b = snappy.Encode(nil, b)
 		}
+		if config.Padding {
+			b, err = proto.PaddingEncode(b)
+			if err != nil {
+				util.PrintLog(config.Verbose, "[server] failed to encode padding %v", err)
+				break
+			}
+		}
 		_, err = stream.Write(b)
 		if err != nil {
 			break
@@ -245,11 +252,22 @@ func toServer(config config.Config, reader *bufio.Reader, conn net.Conn) {
 	buffer := pool.BytePool.Get()
 	defer pool.BytePool.Put(buffer)
 	for {
-		n, err := reader.Read(buffer)
-		if err != nil {
-			break
+		var n int
+		var b []byte
+		var err error
+		if config.Padding {
+			n, b, err = proto.PaddingDecode(reader)
+			if err != nil {
+				util.PrintLog(config.Verbose, "[server] failed to decode padding %v", err)
+				break
+			}
+		} else {
+			n, err = reader.Read(buffer)
+			if err != nil {
+				break
+			}
+			b = buffer[:n]
 		}
-		b := buffer[:n]
 		if config.Compress {
 			b, err = snappy.Decode(nil, b)
 			if err != nil {
@@ -264,6 +282,6 @@ func toServer(config config.Config, reader *bufio.Reader, conn net.Conn) {
 		if err != nil {
 			break
 		}
-		counter.IncrReadBytes(int(n))
+		counter.IncrReadBytes(n)
 	}
 }

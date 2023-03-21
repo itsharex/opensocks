@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"github.com/net-byte/opensocks/common/util"
 	"github.com/net-byte/opensocks/config"
 	"github.com/net-byte/opensocks/counter"
+	"github.com/net-byte/opensocks/proto"
 	"github.com/xtaci/smux"
 )
 
@@ -103,6 +105,13 @@ func (u *UDPServer) toServer() {
 		if u.Config.Compress {
 			data = snappy.Encode(nil, data)
 		}
+		if u.Config.Padding {
+			data, err = proto.PaddingEncode(data)
+			if err != nil {
+				util.PrintLog(u.Config.Verbose, "failed to encode padding:%v", err)
+				continue
+			}
+		}
 		stream.Write(data)
 		counter.IncrWrittenBytes(n)
 	}
@@ -110,17 +119,30 @@ func (u *UDPServer) toServer() {
 
 // toClient handle the udp packet from server
 func (u *UDPServer) toClient(stream io.ReadWriteCloser, cliAddr *net.UDPAddr) {
-	key := cliAddr.String()
+	defer stream.Close()
 	buffer := pool.BytePool.Get()
 	defer pool.BytePool.Put(buffer)
-	defer stream.Close()
+	key := cliAddr.String()
+	reader := bufio.NewReader(stream)
 	for {
-		n, err := stream.Read(buffer)
-		if err != nil {
-			break
+		var n int
+		var b []byte
+		var err error
+		if u.Config.Padding {
+			n, b, err = proto.PaddingDecode(reader)
+			if err != nil {
+				util.PrintLog(u.Config.Verbose, "failed to decode padding:%v", err)
+				break
+			}
+		} else {
+			n, err = reader.Read(buffer)
+			if err != nil {
+				break
+			}
+			b = buffer[:n]
 		}
 		if header, ok := u.headerMap.Load(key); ok {
-			b := buffer[:n]
+
 			if u.Config.Compress {
 				b, err = snappy.Decode(nil, b)
 				if err != nil {

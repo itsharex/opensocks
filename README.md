@@ -26,6 +26,8 @@ Usage of opensocks:
       enable data obfuscation
   -compress
       enable data compression
+  -padding
+        enable data padding
   -p string
       protocol ws/wss/kcp/tcp (default "wss")
   -s string

@@ -15,6 +15,7 @@ type Config struct {
 	Bypass             bool
 	Obfs               bool
 	Compress           bool
+	Padding            bool
 	HttpProxy          bool
 	Verbose            bool
 }

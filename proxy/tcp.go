@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"io"
 	"log"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"github.com/net-byte/opensocks/common/util"
 	"github.com/net-byte/opensocks/config"
 	"github.com/net-byte/opensocks/counter"
+	"github.com/net-byte/opensocks/proto"
 	"github.com/xtaci/smux"
 )
 
@@ -94,6 +96,13 @@ func (t *TCPProxy) toServer(stream io.ReadWriteCloser, tcpconn net.Conn) {
 		if t.Config.Compress {
 			b = snappy.Encode(nil, b)
 		}
+		if t.Config.Padding {
+			b, err = proto.PaddingEncode(b)
+			if err != nil {
+				util.PrintLog(t.Config.Verbose, "failed to encode padding:%v", err)
+				break
+			}
+		}
 		_, err = stream.Write(b)
 		if err != nil {
 			break
@@ -108,12 +117,24 @@ func (t *TCPProxy) toClient(stream io.ReadWriteCloser, tcpconn net.Conn) {
 	defer tcpconn.Close()
 	buffer := pool.BytePool.Get()
 	defer pool.BytePool.Put(buffer)
+	reader := bufio.NewReader(stream)
 	for {
-		n, err := stream.Read(buffer)
-		if err != nil {
-			break
+		var n int
+		var b []byte
+		var err error
+		if t.Config.Padding {
+			n, b, err = proto.PaddingDecode(reader)
+			if err != nil {
+				util.PrintLog(t.Config.Verbose, "failed to decode padding:%v", err)
+				break
+			}
+		} else {
+			n, err = reader.Read(buffer)
+			if err != nil {
+				break
+			}
+			b = buffer[:n]
 		}
-		b := buffer[:n]
 		if t.Config.Compress {
 			b, err = snappy.Decode(nil, b)
 			if err != nil {

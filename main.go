@@ -30,6 +30,7 @@ func main() {
 	flag.BoolVar(&config.Bypass, "bypass", false, "bypass private ip")
 	flag.BoolVar(&config.Obfs, "obfs", false, "enable data obfuscation")
 	flag.BoolVar(&config.Compress, "compress", false, "enable data compression")
+	flag.BoolVar(&config.Padding, "padding", false, "enable data padding")
 	flag.BoolVar(&config.HttpProxy, "http-proxy", false, "enable http proxy")
 	flag.BoolVar(&config.Verbose, "v", false, "enable verbose output")
 	flag.Parse()

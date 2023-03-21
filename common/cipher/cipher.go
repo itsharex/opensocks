@@ -5,10 +5,9 @@ import (
 	"encoding/hex"
 	"math/rand"
 	"strings"
-	"time"
 )
 
-var _chars = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+var _chars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 var _key = []byte("SpUsXuZw4z6B9EbGdKgNjQnTqVsYv2x5")
 
 // Generate key from string
@@ -29,11 +28,25 @@ func XOR(src []byte) []byte {
 
 // Generate random string
 func Random() string {
-	rand.Seed(time.Now().UnixNano())
-	length := 8 + rand.Intn(8)
+	max := len(_chars)
+	length := 8 + rand.Intn(256)
 	var b strings.Builder
 	for i := 0; i < length; i++ {
-		b.WriteRune(_chars[rand.Intn(len(_chars))])
+		b.WriteByte(_chars[rand.Intn(max)])
 	}
 	return b.String()
+}
+
+// RandromData generate random data
+func RandomData(size int) (int32, []byte) {
+	max := len(_chars)
+	if size <= 0 {
+		return 0, nil
+	}
+	length := rand.Intn(size)
+	var data []byte = make([]byte, length)
+	for i := 0; i < length; i++ {
+		data[i] = _chars[rand.Intn(max)]
+	}
+	return int32(length), data
 }
